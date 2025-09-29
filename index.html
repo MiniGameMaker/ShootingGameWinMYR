@@ -1,458 +1,98 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Advanced Shooting Game with Levels & Rules</title>
-<style>
-  body {
-    margin: 0;
-    background: #111;
-    overflow: hidden;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    color: #eee;
-    font-family: Arial, sans-serif;
-    user-select: none;
-    flex-direction: column;
-  }
-  canvas {
-    background: #222;
-    border: 2px solid #00ff99;
-    display: block;
-  }
-  #info {
-    margin: 10px 0;
-    text-align: center;
-  }
-  #score, #level, #phase, #bulletsLeft, #message {
-    font-size: 18px;
-    margin: 4px 0;
-  }
-  #instructions {
-    font-size: 14px;
-    color: #aaa;
-    margin-top: 10px;
-    max-width: 480px;
-  }
-  #paymentInfo {
-    margin-top: 15px;
-    font-size: 14px;
-    color: #0f0;
-    max-width: 480px;
-    background: #003300;
-    padding: 10px;
-    border-radius: 6px;
-  }
-  button {
-    margin-top: 10px;
-    padding: 8px 16px;
-    font-size: 16px;
-    background: #00ff99;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    color: #111;
-    font-weight: bold;
-  }
-  button:hover {
-    background: #00cc77;
-  }
-</style>
+  <meta charset="UTF-8">
+  <title>Change Background</title>
+  <style>
+    body {
+      text-align: center;
+      margin-top: 50px;
+      font-family: sans-serif;
+      transition: background-color 5s linear, color 0.3s ease;
+      color: black;
+    }
+    button {
+      margin: 8px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      color: white;
+    }
+    .red    { background: red; }
+    .orange { background: orange; }
+    .yellow { background: gold; color: black; }
+    .green  { background: green; }
+    .blue   { background: blue; }
+    .indigo { background: indigo; }
+    .purple { background: purple; }
+    .black  { background: black; }
+    .white  { background: white; color: black; border: 1px solid #ccc; }
+
+    /* Tiny RGB button in top-left corner */
+    #rgbBtn {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 1px;
+      height: 1px;
+      background: gray;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      z-index: 1000;
+    }
+  </style>
 </head>
 <body>
 
-<div id="info">
-  <div id="level">Level: 1</div>
-  <div id="phase">Phase: 1 / 3</div>
-  <div id="score">Score: 0</div>
-  <div id="bulletsLeft">Bullets Left: 3</div>
-  <div id="message"></div>
-</div>
+  <h2>Click a Button to Change the Background Color</h2>
 
-<canvas id="gameCanvas" width="480" height="320"></canvas>
+  <button class="red"    onclick="changeBg('red')">Red</button>
+  <button class="orange" onclick="changeBg('orange')">Orange</button>
+  <button class="yellow" onclick="changeBg('gold')">Yellow</button>
+  <button class="green"  onclick="changeBg('green')">Green</button>
+  <button class="blue"   onclick="changeBg('blue')">Blue</button>
+  <button class="indigo" onclick="changeBg('indigo')">Indigo</button>
+  <button class="purple" onclick="changeBg('purple')">Purple</button>
+  <button class="black"  onclick="changeBg('black')">Black</button>
+  <button class="white"  onclick="changeBg('white')">White</button>
 
-<div id="instructions">
-  Use ← and → to move the green shooter.<br />
-  Press Space to shoot.<br />
-  You must pay RM1 to start playing.<br />
-  Reach level 10 with at least 18 points to unlock the boss level.<br />
-  Boss level (11) gives RM5 prize if you win.<br />
-  Prize total RM7 if you win boss level.<br />
-  To pay, send RM1 to Touch 'n Go: +60168964595.<br />
-  To claim prize, WhatsApp the same number with screenshot proof.<br />
-  If you lose or fail level 10, you must pay again to restart.<br />
-</div>
+  <!-- Tiny button for RGB light effect -->
+  <button id="rgbBtn" onclick="startRgbCycle()" title="RGB Mode"></button>
 
-<div id="paymentInfo">
-  <strong>Payment & Prize Info:</strong><br />
-  - RM1 to start playing.<br />
-  - RM2 prize if you reach level 10.<br />
-  - RM5 prize if you win boss level (level 11).<br />
-  - Total RM7 if you win boss level.<br />
-  - Contact +60168964595 for payment and prize claims.<br />
-</div>
+  <script>
+    let rgbInterval;
 
-<button id="startBtn">Pay RM1 and Start Game</button>
+    function changeBg(color) {
+      clearInterval(rgbInterval); // stop RGB cycle if running
+      document.body.style.transition = 'background-color 0.3s ease';
+      document.body.style.backgroundColor = color;
 
-<script>
-(() => {
-  const canvas = document.getElementById('gameCanvas');
-  const ctx = canvas.getContext('2d');
-
-  const shooterWidth = 40;
-  const shooterHeight = 20;
-  const bulletWidth = 5;
-  const bulletHeight = 10;
-
-  // Target sizes for normal and boss
-  const targetNormalWidth = 50;
-  const targetNormalHeight = 20;
-  const targetBossWidth = 30;
-  const targetBossHeight = 15;
-
-  // Game state variables
-  let shooterX = (canvas.width - shooterWidth) / 2;
-  const shooterY = canvas.height - shooterHeight - 10;
-
-  let bullets = [];
-  let targetX = 0;
-  let targetY = 50;
-  let targetSpeed = 2;
-
-  let leftPressed = false;
-  let rightPressed = false;
-  let spacePressed = false;
-
-  let score = 0;
-  let level = 1;
-  let phase = 1;
-  let bulletsLeft = 3;
-
-  let isPlaying = false;
-  let isBossLevel = false;
-
-  // UI elements
-  const levelEl = document.getElementById('level');
-  const phaseEl = document.getElementById('phase');
-  const scoreEl = document.getElementById('score');
-  const bulletsLeftEl = document.getElementById('bulletsLeft');
-  const messageEl = document.getElementById('message');
-  const startBtn = document.getElementById('startBtn');
-
-  // Shooter movement speed base and adjusted by score
-  const baseShooterSpeed = 5;
-
-  // Target vertical base Y and how much it moves up per score
-  const baseTargetY = 50;
-  const maxTargetY = 150; // max height target can move up
-
-  // Boss level constants
-  const bossLevel = 11;
-
-  // Payment simulation
-  let hasPaid = false;
-
-  // Event listeners for controls
-  document.addEventListener('keydown', (e) => {
-    if (!isPlaying) return;
-    if (e.code === 'ArrowLeft') leftPressed = true;
-    if (e.code === 'ArrowRight') rightPressed = true;
-    if (e.code === 'Space') spacePressed = true;
-  });
-
-  document.addEventListener('keyup', (e) => {
-    if (!isPlaying) return;
-    if (e.code === 'ArrowLeft') leftPressed = false;
-    if (e.code === 'ArrowRight') rightPressed = false;
-    if (e.code === 'Space') spacePressed = false;
-  });
-
-  // Reset target position and speed for current level
-  function resetTarget() {
-    targetX = 0;
-    // Target Y moves higher as score increases, capped at maxTargetY
-    // For boss level, targetY fixed near top
-    if (isBossLevel) {
-      targetY = 40;
-      targetSpeed = 5; // faster for boss
-    } else {
-      // Map score to targetY between baseTargetY and maxTargetY
-      const targetYRange = maxTargetY - baseTargetY;
-      const scoreFactor = Math.min(score / 30, 1); // normalize score for height
-      targetY = baseTargetY + targetYRange * scoreFactor;
-
-      // Target speed slows down as score increases (green shooter moves slower)
-      // We'll slow target speed as score increases (inverse)
-      targetSpeed = 2 - Math.min(score * 0.05, 1.5);
-      if (targetSpeed < 0.5) targetSpeed = 0.5;
+      // Adjust text color
+      document.body.style.color =
+        (color === 'black') ? 'white' : 'black';
     }
-  }
 
-  // Draw shooter (green)
-  function drawShooter() {
-    ctx.fillStyle = '#00ff99';
-    ctx.fillRect(shooterX, shooterY, shooterWidth, shooterHeight);
-  }
+    function startRgbCycle() {
+      clearInterval(rgbInterval);
+      document.body.style.transition = 'background-color 5s linear';
 
-  // Draw bullets (red)
-  function drawBullets() {
-    ctx.fillStyle = '#ff4444';
-    bullets.forEach(bullet => {
-      ctx.fillRect(bullet.x, bullet.y, bulletWidth, bulletHeight);
-    });
-  }
-
-  // Draw target (yellow)
-  function drawTarget() {
-    ctx.fillStyle = '#ffaa00';
-    if (isBossLevel) {
-      ctx.fillRect(targetX, targetY, targetBossWidth, targetBossHeight);
-    } else {
-      ctx.fillRect(targetX, targetY, targetNormalWidth, targetNormalHeight);
-    }
-  }
-
-  // Update bullet positions and remove off-screen bullets
-  function updateBullets() {
-    bullets.forEach((bullet, index) => {
-      bullet.y -= 7;
-      if (bullet.y + bulletHeight < 0) {
-        bullets.splice(index, 1);
+      function randomColor() {
+        const r = Math.floor(Math.random() * 256);
+        const g = Math.floor(Math.random() * 256);
+        const b = Math.floor(Math.random() * 256);
+        return `rgb(${r}, ${g}, ${b})`;
       }
-    });
-  }
 
-  // Check collision between bullets and target
-  function checkCollision() {
-    bullets.forEach((bullet, bIndex) => {
-      const targetW = isBossLevel ? targetBossWidth : targetNormalWidth;
-      const targetH = isBossLevel ? targetBossHeight : targetNormalHeight;
-      if (
-        bullet.x < targetX + targetW &&
-        bullet.x + bulletWidth > targetX &&
-        bullet.y < targetY + targetH &&
-        bullet.y + bulletHeight > targetY
-      ) {
-        // Hit detected
-        bullets.splice(bIndex, 1);
-        score++;
-        scoreEl.textContent = 'Score: ' + score;
-
-        if (isBossLevel) {
-          // Player wins boss level
-          messageEl.style.color = '#00ff99';
-          messageEl.textContent = 'You hit the boss! You win RM5 prize! Total RM7!';
-          isPlaying = false;
-          startBtn.style.display = 'inline-block';
-          startBtn.textContent = 'Play Again (Pay RM1)';
-          return;
-        }
-
-        // Hit target in normal level/phase
-        nextPhaseOrLevel();
-      }
-    });
-  }
-
-  // Move target horizontally and bounce
-  function updateTarget() {
-    targetX += targetSpeed;
-    const targetW = isBossLevel ? targetBossWidth : targetNormalWidth;
-    if (targetX + targetW > canvas.width || targetX < 0) {
-      targetSpeed = -targetSpeed;
+      // change immediately, then every 5 seconds
+      document.body.style.backgroundColor = randomColor();
+      rgbInterval = setInterval(() => {
+        document.body.style.backgroundColor = randomColor();
+      }, 5000);
     }
-  }
-
-  // Shooter speed slows as score increases (min 1.5)
-  function getShooterSpeed() {
-    const speed = baseShooterSpeed - score * 0.1;
-    return speed < 1.5 ? 1.5 : speed;
-  }
-
-  // Handle moving shooter and shooting bullets
-  let lastShotTime = 0;
-  const shotCooldown = 400; // ms between shots
-
-  function gameLoop(timestamp) {
-    if (!isPlaying) return;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Move shooter
-    const shooterSpeed = getShooterSpeed();
-    if (leftPressed && shooterX > 0) {
-      shooterX -= shooterSpeed;
-      if (shooterX < 0) shooterX = 0;
-    }
-    if (rightPressed && shooterX + shooterWidth < canvas.width) {
-      shooterX += shooterSpeed;
-      if (shooterX + shooterWidth > canvas.width) shooterX = canvas.width - shooterWidth;
-    }
-
-    // Shoot bullet if space pressed and bullets left
-    if (spacePressed && bulletsLeft > 0) {
-      if (!lastShotTime || timestamp - lastShotTime > shotCooldown) {
-        bullets.push({
-          x: shooterX + shooterWidth / 2 - bulletWidth / 2,
-          y: shooterY - bulletHeight
-        });
-        bulletsLeft--;
-        bulletsLeftEl.textContent = 'Bullets Left: ' + bulletsLeft;
-        lastShotTime = timestamp;
-
-        if (bulletsLeft === 0) {
-          // No bullets left, check if player missed
-          setTimeout(() => {
-            if (isPlaying) {
-              // Player failed to hit target in this phase
-              messageEl.style.color = '#ff4444';
-              messageEl.textContent = 'Out of bullets! You missed the target.';
-              // Restart or pay logic for level 10 fail
-              if (level === 10 && !isBossLevel) {
-                if (score < 18) {
-                  messageEl.textContent += ' You need at least 18 points to proceed. Please pay RM1 to retry level 10.';
-                  isPlaying = false;
-                  startBtn.style.display = 'inline-block';
-                  startBtn.textContent = 'Pay RM1 to Retry Level 10';
-                } else {
-                  // Player has enough score, allow to proceed to boss level
-                  messageEl.textContent += ' You can proceed to boss level!';
-                  nextLevel(true);
-                }
-              } else if (isBossLevel) {
-                // Boss level fail
-                messageEl.textContent += ' You lost the boss level. Pay RM1 to try again from level 1.';
-                isPlaying = false;
-                startBtn.style.display = 'inline-block';
-                startBtn.textContent = 'Pay RM1 to Restart from Level 1';
-              } else {
-                // Normal phase fail, restart phase (pay required only at level 10)
-                messageEl.textContent += ' Restarting phase.';
-                resetPhase();
-              }
-            }
-          }, 500);
-        }
-      }
-    }
-
-    updateBullets();
-    updateTarget();
-    checkCollision();
-
-    drawShooter();
-    drawBullets();
-    drawTarget();
-
-    requestAnimationFrame(gameLoop);
-  }
-
-  // Proceed to next phase or level after a hit
-  function nextPhaseOrLevel() {
-    messageEl.textContent = '';
-    if (phase < 3) {
-      phase++;
-      bulletsLeft = 3;
-      if (isBossLevel) bulletsLeft = 1; // boss level bullet count
-      phaseEl.textContent = `Phase: ${phase} / 3`;
-      bulletsLeftEl.textContent = 'Bullets Left: ' + bulletsLeft;
-      resetTarget();
-    } else {
-      // Completed all phases in this level
-      nextLevel();
-    }
-  }
-
-  // Proceed to next level
-  // If from level 10 with enough score, proceed to boss level
-  function nextLevel(fromLevel10Success = false) {
-    phase = 1;
-    phaseEl.textContent = `Phase: ${phase} / 3`;
-    bulletsLeft = 3;
-    bulletsLeftEl.textContent = 'Bullets Left: ' + bulletsLeft;
-
-    if (fromLevel10Success) {
-      // Go to boss level
-      level = bossLevel;
-      isBossLevel = true;
-      bulletsLeft = 1;
-      bulletsLeftEl.textContent = 'Bullets Left: ' + bulletsLeft;
-      levelEl.textContent = 'Level: Boss (11)';
-      messageEl.textContent = 'Boss level! One bullet only. Good luck!';
-      resetTarget();
-      return;
-    }
-
-    if (level < 10) {
-      level++;
-      levelEl.textContent = 'Level: ' + level;
-      resetTarget();
-    } else if (level === 10) {
-      // Check if player has enough score to proceed to boss level
-      if (score >= 18) {
-        messageEl.textContent = 'Congratulations! You can proceed to boss level!';
-        nextLevel(true);
-      } else {
-        messageEl.textContent = 'You need at least 18 points to proceed. Please pay RM1 to retry level 10.';
-        isPlaying = false;
-        startBtn.style.display = 'inline-block';
-        startBtn.textContent = 'Pay RM1 to Retry Level 10';
-      }
-    }
-  }
-
-  // Reset current phase (used when player misses)
-  function resetPhase() {
-    bullets = [];
-    bulletsLeft = isBossLevel ? 1 : 3;
-    bulletsLeftEl.textContent = 'Bullets Left: ' + bulletsLeft;
-    messageEl.textContent = '';
-    resetTarget();
-  }
-
-  // Reset entire game state
-  function resetGame() {
-    score = 0;
-    level = 1;
-    phase = 1;
-    bulletsLeft = 3;
-    isBossLevel = false;
-    shooterX = (canvas.width - shooterWidth) / 2;
-    bullets = [];
-    leftPressed = false;
-    rightPressed = false;
-    spacePressed = false;
-    isPlaying = true;
-
-    levelEl.textContent = 'Level: ' + level;
-    phaseEl.textContent = `Phase: ${phase} / 3`;
-    scoreEl.textContent = 'Score: ' + score;
-    bulletsLeftEl.textContent = 'Bullets Left: ' + bulletsLeft;
-    messageEl.textContent = 'Game started! Good luck!';
-    startBtn.style.display = 'none';
-
-    resetTarget();
-    requestAnimationFrame(gameLoop);
-  }
-
-  // Start button click handler (simulate payment)
-  startBtn.addEventListener('click', () => {
-    if (!hasPaid) {
-      alert('Please pay RM1 to Touch \'n Go: +60168964595 before starting.');
-      hasPaid = true; // Simulate payment done
-      alert('Payment received. Starting game...');
-      resetGame();
-    } else {
-      // Restart game after loss or retry
-      resetGame();
-    }
-  });
-
-})();
-</script>
+  </script>
 
 </body>
 </html>
